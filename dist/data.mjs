@@ -1,28 +1,3 @@
-// AIHOT 综合榜 / 国产模型筛选，2026-10-06 页面快照。单价 CNY / 1M token。
-const source=[
-['MiMo-V2.6-Pro','Xiaomi',63.8,.025,3,6,12,'mimo-v-2-6-pro'],
-['Kimi K3','Moonshot AI',63.6,2,20,100,14,'kimi-k-3'],
-['Step 5 Preview','StepFun',62.2,null,null,null,16,'step-5-preview'],
-['GLM-5.3','Z.ai',61.8,1.74,9.39,29.5,18,'glm-5-3'],
-['DeepSeek V4.1 Flash','DeepSeek',59.9,.0402,2.01,8.05,24,'deepseek-v-4-1-flash'],
-['Qwen3.8 Max','Alibaba',59.1,1.5,12,36,26,'qwen-3-8-max'],
-['DeepSeek V4 Pro 0813','DeepSeek',58.3,.3,9,27,27,'deepseek-v-4-pro-20260813'],
-['MiMo V 2.6 Flash','Xiaomi',57.2,null,null,null,31,'mimo-v-2-6-flash'],
-['Qwen3.8 Flash Next','Alibaba',57.2,.1,.8,2.7,33,'qwen-3-8-flash-next'],
-['DeepSeek V4 Flash 0731','DeepSeek',56.6,.1,3,9,36,'deepseek-v-4-flash-20260731'],
-['GLM-5.3 Flash','Z.ai',56.5,.23,.8,2.8,38,'glm-5-3-flash'],
-['GLM-5.2','Z.ai',54.1,2,8,28,40,'glm-5-2'],
-['Qwen3.7 Max','Alibaba',52.6,2.4,12,36,42,'qwen-3-7-max'],
-['DeepSeek V4 Pro Preview','DeepSeek',51.7,.0243,2.92,5.83,43,'deepseek-v-4-pro-preview'],
-['Qwen3.8-27B','Alibaba',51.5,.6,3,12,44,'qwen-3-8-27-b'],
-['Kimi K2.6','Moonshot AI',51,1.1,6.5,27,45,'kimi-k-2-6'],
-['Kimi K2.7 Code','Moonshot AI',49.3,1.3,6.5,27,46,'kimi-k-2-7-code'],
-['MiMo-V2.5-Pro','Xiaomi',48.9,.025,3,6,47,'mimo-v-2-5-pro'],
-['Qwen3.6 Plus','Alibaba',48.5,.4,2,12,48,'qwen-3-6-plus'],
-['MiniMax-M3','MiniMax',48.3,.42,2.1,8.4,49,'minimax-m-3'],
-['GLM-5.1','Z.ai',46.1,1.3,6,24,52,'glm-5-1'],
-['Qwen3.7 Plus','Alibaba',45.5,.4,2,8,53,'qwen-3-7-plus'],
-['DeepSeek V4 Flash Preview','DeepSeek',45.5,.0188,.94,1.88,54,'deepseek-v-4-flash-preview'],
-['Qwen3.6-27B','Alibaba',42.6,null,3,18,59,'qwen-3-6-27-b'],
-['MiniMax M 2.7','MiniMax',40.4,null,null,null,61,'minimax-m-2-7']];
-export const snapshot=source.map(([name,provider,score,cache,input,output,rank,id])=>({name,provider,score,cache,input,output,rank,id}));
+const data = await (await fetch(new URL("./snapshot.json", import.meta.url))).json();
+export const snapshot = data.models;
+export const metadata = data.metadata;
