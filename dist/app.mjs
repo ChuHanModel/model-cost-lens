@@ -2,17 +2,30 @@ import {snapshot,metadata} from './data.mjs';
 import {weights,compare,selectModels,toCSV} from './core.mjs';
 const $=id=>document.getElementById(id);
 const categoryNames={overall:'综合',coding:'编程',reasoning:'科研',professional:'专业办公',knowledge:'知识问答'};
-let values=[97,2,1],category='overall',domestic=false,open=false,search='',rows=[],sortKey='cost',sortDirection=1;
+let values=[97,2,1],category='overall',domestic=false,open=false,search='',rows=[],sortKey='cost',sortDirection=1,selectedId=null;
 const money=p=>p===null?'未知':'¥'+Number(p.toFixed(4)).toString();
 const costMoney=p=>p===null?'无法计算':'¥'+p.toFixed(3);
 const setText=(id,t)=>{$(id).textContent=t;};
+function selectPoint(id,scroll=false){
+ const model=rows.find(r=>r.id===id&&r.cost!==null&&Number.isFinite(r.score)&&r.rank!==null);
+ selectedId=model?.id??null;$('point-info').hidden=!model;
+ document.querySelectorAll('#chart .chart-point').forEach(point=>point.setAttribute('aria-pressed',String(point.dataset.modelId===selectedId)));
+ if(!model)return;
+ setText('point-name',model.name);setText('point-provider',`${model.provider} · ${model.frontier?'在边界上':'有更优替代'}`);
+ const facts=[[categoryNames[category]+'评分',model.score.toFixed(1)],['原榜名次','第 '+model.rank+' 名'],['折算价',costMoney(model.cost)+' / 百万总 Token'],['缓存输入价',money(model.cache)+' / 百万 Token'],['普通输入价',money(model.input)+' / 百万 Token'],['输出价',money(model.output)+' / 百万 Token']];
+ const fragment=document.createDocumentFragment();for(const[label,value]of facts){const wrap=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;if(label==='折算价')dd.title=`未取整折算价：¥${model.cost.toFixed(8)}`;wrap.append(dt,dd);fragment.append(wrap);}$('point-facts').replaceChildren(fragment);
+ setText('point-alternatives',model.dominatedBy.length?'价格不高、评分不低的替代：'+model.dominatedBy.slice(0,3).join('、')+(model.dominatedBy.length>3?' 等':''):'');
+ $('point-source').href=model.url;
+ if(scroll)$('point-info').scrollIntoView({block:'nearest',behavior:'auto'});
+}
+function closePoint(){const previous=selectedId;selectPoint(null);const point=Array.from(document.querySelectorAll('#chart .chart-point')).find(p=>p.dataset.modelId===previous);point?.focus({preventScroll:true});}
 function chart(){
  const valid=rows.filter(r=>r.cost!==null&&Number.isFinite(r.score)&&r.rank!==null),front=valid.filter(r=>r.frontier).sort((a,b)=>a.cost-b.cost||b.score-a.score);
- if(!valid.length){$('chart').textContent='当前筛选下没有已入榜且价格可计算的模型。';return;}
+ if(!valid.length){selectedId=null;selectPoint(null);$('chart').textContent='当前筛选下没有已入榜且价格可计算的模型。';return;}
  const width=780,height=275,left=56,right=27,top=30,bottom=53,pw=width-left-right,ph=height-top-bottom;
  const maxPrice=Math.max(...valid.map(r=>r.cost),.1)*1.18,low=Math.floor((Math.min(...valid.map(r=>r.score))-4)/5)*5,high=Math.ceil((Math.max(...valid.map(r=>r.score))+5)/5)*5;
  const x=v=>left+Math.log1p(v/.1)/Math.log1p(maxPrice/.1)*pw,y=v=>top+(high-v)/(high-low)*ph;
- const svgNS='http://www.w3.org/2000/svg',svg=document.createElementNS(svgNS,'svg');svg.setAttribute('viewBox',`0 0 ${width} ${height}`);svg.setAttribute('role','img');svg.setAttribute('aria-label','模型折算价与当前分类评分散点图，绿色为性价比边界。具体数据可在下方表格查看。');
+ const svgNS='http://www.w3.org/2000/svg',svg=document.createElementNS(svgNS,'svg');svg.setAttribute('viewBox',`0 0 ${width} ${height}`);svg.setAttribute('role','group');svg.setAttribute('aria-label','模型折算价与当前分类评分散点图，绿色为性价比边界。点击图中的点查看模型详情，也可用 Tab、回车或空格操作。');
  const el=(tag,attrs={},text)=>{const n=document.createElementNS(svgNS,tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,String(v));if(text!==undefined)n.textContent=text;svg.append(n);return n;};
  for(let t=low;t<=high;t+=5){el('line',{x1:left,x2:width-right,y1:y(t),y2:y(t),stroke:'#e6ebf2','stroke-dasharray':'3 4'});el('text',{x:left-11,y:y(t)+4,'text-anchor':'end',fill:'#8290a5','font-size':10},t);}
  const ticks=[0,.03,.1,.3,1,3,10,30,100,300,1000].filter(v=>v<=maxPrice);
@@ -20,10 +33,14 @@ function chart(){
  el('text',{x:left,y:17,fill:'#6b778a','font-size':10},'当前分类评分');el('text',{x:width-right,y:height-9,'text-anchor':'end',fill:'#6b778a','font-size':10},'折算成本 / 百万总 Token');
  if(front.length>1)el('polyline',{points:front.map(r=>`${x(r.cost)},${y(r.score)}`).join(' '),fill:'none',stroke:'#087b67','stroke-width':2,'stroke-dasharray':'5 4',opacity:.7});
  const labelSlots=[];const labelIds=new Set(front.length<=6?front.map(r=>r.id):Array.from({length:6},(_,i)=>front[Math.round(i*(front.length-1)/5)].id));
- for(const r of valid.sort((a,b)=>Number(a.frontier)-Number(b.frontier))){const xx=x(r.cost),yy=y(r.score);const c=el('circle',{cx:xx,cy:yy,r:r.frontier?6:4.2,fill:r.frontier?'#087b67':'#bac6d8',stroke:'#fff','stroke-width':2,tabindex:0});const title=document.createElementNS(svgNS,'title');title.textContent=`${r.name}：${costMoney(r.cost)}，当前分类评分 ${r.score}，${r.frontier?'边界模型':'被支配'}`;c.append(title);
- if(r.frontier&&labelIds.has(r.id)){let labelX=xx+12,labelY=yy-10;if(labelX>width-190)labelX=xx-12;while(labelSlots.some(s=>Math.abs(s.y-labelY)<16&&Math.abs(s.x-labelX)<180))labelY+=17;labelSlots.push({x:labelX,y:labelY});el('text',{x:labelX,y:labelY,'text-anchor':labelX<xx?'end':'start',fill:'#087b67','font-size':11,'font-weight':600,style:'paint-order:stroke;stroke:white;stroke-width:4px;stroke-linejoin:round'},r.name);}
+ for(const r of valid.sort((a,b)=>Number(a.frontier)-Number(b.frontier))){const xx=x(r.cost),yy=y(r.score);const point=el('g',{class:'chart-point',role:'button',tabindex:0,'aria-label':`查看 ${r.name} 的模型信息`,'aria-controls':'point-info','aria-pressed':String(r.id===selectedId),'data-model-id':r.id});
+ const hit=document.createElementNS(svgNS,'circle');hit.setAttribute('cx',xx);hit.setAttribute('cy',yy);hit.setAttribute('r','12');hit.setAttribute('fill','transparent');point.append(hit);
+ const c=document.createElementNS(svgNS,'circle');for(const[k,v]of Object.entries({cx:xx,cy:yy,r:r.frontier?6:4.2,fill:r.frontier?'#087b67':'#bac6d8',stroke:'#fff','stroke-width':2,class:'point-dot'}))c.setAttribute(k,String(v));point.append(c);
+ const title=document.createElementNS(svgNS,'title');title.textContent=`${r.name}：${costMoney(r.cost)}，${categoryNames[category]}评分 ${r.score}，${r.frontier?'在边界上':'有更优替代'}`;point.append(title);
+ point.addEventListener('click',()=>selectPoint(r.id,true));point.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();selectPoint(r.id,true);}else if(event.key==='Escape')closePoint();});
+ if(r.frontier&&labelIds.has(r.id)){let labelX=xx+12,labelY=yy-10;if(labelX>width-190)labelX=xx-12;while(labelSlots.some(s=>Math.abs(s.y-labelY)<16&&Math.abs(s.x-labelX)<180))labelY+=17;labelSlots.push({x:labelX,y:labelY});el('text',{x:labelX,y:labelY,'text-anchor':labelX<xx?'end':'start',fill:'#087b67','font-size':11,'font-weight':600,style:'paint-order:stroke;stroke:white;stroke-width:4px;stroke-linejoin:round;pointer-events:none'},r.name);}
  }
- $('chart').replaceChildren(svg);
+ $('chart').replaceChildren(svg);selectPoint(selectedId);
 }
 function table(){
  const ordered=[...rows].sort((a,b)=>{const av=a[sortKey],bv=b[sortKey];if(av==null&&bv==null)return a.name.localeCompare(b.name);if(av==null)return 1;if(bv==null)return -1;return (av-bv)*sortDirection||a.name.localeCompare(b.name);});
@@ -41,6 +58,7 @@ function render(){
  setText('control-error','');setText('dataset-note',`使用${categoryNames[category]}评分；价格为 ¥ / 百万 Token，折算价为 ¥ / 百万总 Token。`);chart();table();
 }
 function custom(){const next=['cache-weight','input-weight','output-weight'].map(id=>$(id).valueAsNumber);try{weights(...next);values=next;render();}catch(e){setText('control-error',e.message+' 暂时保留上一次有效结果。');}}
+$('close-point').addEventListener('click',closePoint);$('point-info').addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closePoint();}});
 for(const id of ['cache-weight','input-weight','output-weight'])$(id).addEventListener('input',custom);
 document.querySelectorAll('[data-values]').forEach(b=>b.addEventListener('click',()=>{values=b.dataset.values.split(',').map(Number);['cache-weight','input-weight','output-weight'].forEach((id,i)=>$(id).value=values[i]);render();}));
 $('category').addEventListener('change',()=>{category=$('category').value;render();});$('domestic').addEventListener('change',()=>{domestic=$('domestic').checked;render();});$('open').addEventListener('change',()=>{open=$('open').checked;render();});$('search').addEventListener('input',()=>{search=$('search').value.trim().toLowerCase();table();});
